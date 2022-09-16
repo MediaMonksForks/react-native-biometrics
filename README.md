@@ -112,13 +112,14 @@ __Options Object__
 | Parameter | Type | Description | iOS | Android |
 | --- | --- | --- | --- | --- |
 | allowDeviceCredentials | boolean | Boolean that will enable the ability for the device passcode to be used instead of biometric information. On iOS, the prompt will only be shown after biometrics has failed twice. On Android, the prompt will be shown on the biometric prompt and does not require the user to attempt to use biometrics information first. Note: This feature is not supported on Android versions prior to API 30. | ✔ | ✔ |
+| weakBiometrics | boolean | Boolean that will enable WEAK Biometric Authenticator on Android. If not specified, the Biometric Authenticator will be STRONG. | x | ✔ |
 
 __Example__
 
 ```js
 import ReactNativeBiometrics from 'react-native-biometrics'
 
-const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true })
+const rnBiometrics = new ReactNativeBiometrics({ allowDeviceCredentials: true, weakBiometrics: true })
 
 // Perform operations as normal
 // All prompts will allow for fallback to the device's credentials for authentication
@@ -136,6 +137,9 @@ __Result Object__
 | available | bool | A boolean indicating if biometrics is available or not |
 | biometryType | string | A string indicating what type of biometrics is available. `TouchID`, `FaceID`, `Biometrics`, or `undefined` if biometrics is not available. |
 | error | string | An error message indicating why biometrics may not be available. `undefined` if there is no error. |
+| fingerprintAvailable | bool | *ONLY IN ANDROID*. A boolean indicating if Fingerprint biometrics is available or not. |
+| faceAvailable | bool | *ONLY IN ANDROID*. A boolean indicating if Face biometrics is available or not. |
+| irisAvailable | bool | *ONLY IN ANDROID*. A boolean indicating if Iris biometrics is available or not. |
 
 __Example__
 
