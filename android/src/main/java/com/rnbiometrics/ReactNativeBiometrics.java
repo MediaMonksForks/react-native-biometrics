@@ -1,5 +1,6 @@
 package com.rnbiometrics;
 
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
@@ -52,17 +53,41 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
         try {
             if (isCurrentSDKMarshmallowOrLater()) {
                 boolean allowDeviceCredentials = params.getBoolean("allowDeviceCredentials");
+
+                int biometricAuthenticator = BiometricManager.Authenticators.BIOMETRIC_STRONG;
+                if(params.hasKey("weakBiometrics")) {
+                    boolean biometricWeakSelected = params.getBoolean("weakBiometrics");
+                    if (biometricWeakSelected) {
+                        biometricAuthenticator = BiometricManager.Authenticators.BIOMETRIC_WEAK;
+                    }
+                }
+
                 ReactApplicationContext reactApplicationContext = getReactApplicationContext();
                 BiometricManager biometricManager = BiometricManager.from(reactApplicationContext);
-                int canAuthenticate = biometricManager.canAuthenticate(getAllowedAuthenticators(allowDeviceCredentials));
+                int canAuthenticate = biometricManager.canAuthenticate(
+                        getAllowedAuthenticators(biometricAuthenticator, allowDeviceCredentials)
+                );
+
+                boolean fingerprintAvailable =
+                        reactApplicationContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_FINGERPRINT);
+                boolean faceAvailable = false;
+                boolean irisAvailable = false;
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    faceAvailable =
+                            reactApplicationContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_FACE);
+                    irisAvailable =
+                            reactApplicationContext.getPackageManager().hasSystemFeature(PackageManager.FEATURE_IRIS);
+                }
+
+                WritableMap resultMap = new WritableNativeMap();
+                resultMap.putBoolean("fingerprintAvailable", fingerprintAvailable);
+                resultMap.putBoolean("faceAvailable", faceAvailable);
+                resultMap.putBoolean("irisAvailable", irisAvailable);
 
                 if (canAuthenticate == BiometricManager.BIOMETRIC_SUCCESS) {
-                    WritableMap resultMap = new WritableNativeMap();
                     resultMap.putBoolean("available", true);
                     resultMap.putString("biometryType", "Biometrics");
-                    promise.resolve(resultMap);
                 } else {
-                    WritableMap resultMap = new WritableNativeMap();
                     resultMap.putBoolean("available", false);
 
                     switch (canAuthenticate) {
@@ -76,9 +101,9 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
                             resultMap.putString("error", "BIOMETRIC_ERROR_NONE_ENROLLED");
                             break;
                     }
-
-                    promise.resolve(resultMap);
                 }
+
+                promise.resolve(resultMap);
             } else {
                 WritableMap resultMap = new WritableNativeMap();
                 resultMap.putBoolean("available", false);
@@ -157,6 +182,14 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
                                 String cancelButtonText = params.getString("cancelButtonText");
                                 boolean allowDeviceCredentials = params.getBoolean("allowDeviceCredentials");
 
+                                int biometricAuthenticator = BiometricManager.Authenticators.BIOMETRIC_STRONG;
+                                if(params.hasKey("weakBiometrics")) {
+                                    boolean biometricWeakSelected = params.getBoolean("weakBiometrics");
+                                    if (biometricWeakSelected) {
+                                        biometricAuthenticator = BiometricManager.Authenticators.BIOMETRIC_WEAK;
+                                    }
+                                }
+
                                 Signature signature = Signature.getInstance("SHA256withRSA");
                                 KeyStore keyStore = KeyStore.getInstance("AndroidKeyStore");
                                 keyStore.load(null);
@@ -171,7 +204,7 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
                                 Executor executor = Executors.newSingleThreadExecutor();
                                 BiometricPrompt biometricPrompt = new BiometricPrompt(fragmentActivity, executor, authCallback);
 
-                                biometricPrompt.authenticate(getPromptInfo(promptMessage, cancelButtonText, allowDeviceCredentials), cryptoObject);
+                                biometricPrompt.authenticate(getPromptInfo(biometricAuthenticator, promptMessage, cancelButtonText, allowDeviceCredentials), cryptoObject);
                             } catch (Exception e) {
                                 promise.reject("Error signing payload: " + e.getMessage(), "Error generating signature: " + e.getMessage());
                             }
@@ -182,10 +215,10 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
         }
     }
 
-    private PromptInfo getPromptInfo(String promptMessage, String cancelButtonText, boolean allowDeviceCredentials) {
+    private PromptInfo getPromptInfo(int biometricAuthenticator, String promptMessage, String cancelButtonText, boolean allowDeviceCredentials) {
         PromptInfo.Builder builder = new PromptInfo.Builder().setTitle(promptMessage);
 
-        builder.setAllowedAuthenticators(getAllowedAuthenticators(allowDeviceCredentials));
+        builder.setAllowedAuthenticators(getAllowedAuthenticators(biometricAuthenticator, allowDeviceCredentials));
 
         if (allowDeviceCredentials == false || isCurrentSDK29OrEarlier()) {
             builder.setNegativeButtonText(cancelButtonText);
@@ -194,11 +227,11 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
         return builder.build();
     }
 
-    private int getAllowedAuthenticators(boolean allowDeviceCredentials) {
+    private int getAllowedAuthenticators(int authenticator, boolean allowDeviceCredentials) {
         if (allowDeviceCredentials && !isCurrentSDK29OrEarlier()) {
-            return BiometricManager.Authenticators.BIOMETRIC_WEAK | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
+            return authenticator | BiometricManager.Authenticators.DEVICE_CREDENTIAL;
         }
-        return BiometricManager.Authenticators.BIOMETRIC_WEAK;
+        return authenticator;
     }
 
     private boolean isCurrentSDK29OrEarlier() {
@@ -217,12 +250,20 @@ public class ReactNativeBiometrics extends ReactContextBaseJavaModule {
                                 String cancelButtonText = params.getString("cancelButtonText");
                                 boolean allowDeviceCredentials = params.getBoolean("allowDeviceCredentials");
 
+                                int biometricAuthenticator = BiometricManager.Authenticators.BIOMETRIC_STRONG;
+                                if(params.hasKey("weakBiometrics")) {
+                                    boolean biometricWeakSelected = params.getBoolean("weakBiometrics");
+                                    if (biometricWeakSelected) {
+                                        biometricAuthenticator = BiometricManager.Authenticators.BIOMETRIC_WEAK;
+                                    }
+                                }
+
                                 AuthenticationCallback authCallback = new SimplePromptCallback(promise);
                                 FragmentActivity fragmentActivity = (FragmentActivity) getCurrentActivity();
                                 Executor executor = Executors.newSingleThreadExecutor();
                                 BiometricPrompt biometricPrompt = new BiometricPrompt(fragmentActivity, executor, authCallback);
 
-                                biometricPrompt.authenticate(getPromptInfo(promptMessage, cancelButtonText, allowDeviceCredentials));
+                                biometricPrompt.authenticate(getPromptInfo(biometricAuthenticator, promptMessage, cancelButtonText, allowDeviceCredentials));
                             } catch (Exception e) {
                                 promise.reject("Error displaying local biometric prompt: " + e.getMessage(), "Error displaying local biometric prompt: " + e.getMessage());
                             }
